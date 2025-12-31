@@ -52,7 +52,7 @@ class Cryption:
         ).digest()
         return hashlib.shake_256(hmac_result).digest(BYTE_LEN)
 
-class FrancEnigma():
+class FrancEnigma:
     def __init__(self, kdf_key : bytes) -> None:
         # generate rotors
         hash_random = HashRandom(kdf_key + b"rotors")

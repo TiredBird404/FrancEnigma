@@ -82,11 +82,11 @@ class FrancEnigma:
         for i, byte in enumerate(result):
             # pass rotors
             for r, d in zip(rotors, deflect):
-                byte = r.index((byte + d) % 256)
+                byte = r[(byte + d) % 256]
             for d in deflect:
                 byte ^= d
             for r, d in zip(reversed_rotors, reversed(deflect)):
-                byte = (r[byte] - d) % 256
+                byte = (r.index(byte) - d) % 256
             result[i] = byte
 
             # turn rotor

@@ -113,7 +113,7 @@ class HashRandom:
         while True:
             self.state = hashlib.sha256(self.state).digest() # update state 
             raw_bytes: bytes = hashlib.shake_128(self.state).digest(byte_needed)
-            value : int = int.from_bytes(raw_bytes, 'big')
+            value : int = int.from_bytes(raw_bytes, 'little')
             value &= mask
             if value < max_num:
                 return value

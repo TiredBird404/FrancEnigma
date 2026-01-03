@@ -14,6 +14,8 @@ class Cryption:
         salt : bytes = get_random_bytes()
         enigma_key, mac_key = self._generate_kdf_key(salt)
 
+        self.text = Diffusion(self.text).diffuse()
+
         franc_enigma = FrancEnigma(enigma_key)
         encrypted : bytes = franc_enigma.cipher(self.text)
 
@@ -37,6 +39,8 @@ class Cryption:
         
         franc_enigma = FrancEnigma(enigma_key)
         decrypted : bytes = franc_enigma.cipher(encrypted)
+
+        decrypted = Undiffusion(decrypted).undiffuse()
 
         return decrypted, True
 
@@ -117,6 +121,58 @@ class HashRandom:
             value &= mask
             if value < max_num:
                 return value
+
+class Diffusion:
+    def __init__(self, text : bytes) -> None:
+        self.text : bytearray = bytearray(text)
+        self.text_len : int = len(self.text)
+    
+    def diffuse(self) -> bytes:
+        for _ in range(16):
+            self._change_place()
+            self._add()
+            self.text.reverse()
+            self._xor()
+        return bytes(self.text)
+    
+    def _change_place(self) -> None:
+        self.text = self.text[1::2] + self.text[0::2]
+
+    def _add(self) -> None:
+        for i in range(self.text_len):
+            self.text[i] = (self.text[i] + i + 1) % 256
+
+    def _xor(self) -> None:
+        for i in range(self.text_len - 1):
+            self.text[i + 1] ^= self.text[i]
+
+class Undiffusion:
+    def __init__(self, text : bytes) -> None:
+        self.text : bytearray = bytearray(text)
+        self.text_len : int = len(self.text)
+    
+    def undiffuse(self) -> bytes:
+        for _ in range(16):
+            self._un_xor()
+            self.text.reverse()
+            self._reduce()
+            self._upright()
+        return bytes(self.text)
+
+    def _upright(self) -> None:
+        half_len : int = self.text_len // 2
+        odd : bytearray = self.text[:half_len]
+        even : bytearray = self.text[half_len:]
+        self.text[0::2] = even
+        self.text[1::2] = odd
+
+    def _reduce(self) -> None:
+        for i in range(self.text_len):
+            self.text[i] = (self.text[i] - i - 1) % 256
+
+    def _un_xor(self) -> None:
+        for i in range(self.text_len - 1, 0, -1):
+            self.text[i] ^= self.text[i - 1]
 
 def get_random_bytes() -> bytes:
     return secrets.token_bytes(BYTE_LEN)

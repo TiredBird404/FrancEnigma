@@ -68,6 +68,14 @@ class FrancEnigma:
                 new_rotor[i], new_rotor[l] = new_rotor[l], new_rotor[i]
             new_rotor_list.append(new_rotor)
         self.rotors : list[bytearray] = new_rotor_list
+
+        self.rotor_index_list : list[bytearray] = []
+        for r in self.rotors[::-1]:
+            new_index_list : bytearray = bytearray(256)
+            for i in range(256):
+                new_index_list[i] = r.index(i)
+            self.rotor_index_list.append(new_index_list)
+        
         # other parameters
         self.deflect : list[int] = list(hashlib.shake_256(kdf_key + b"deflect").digest(BYTE_LEN))
         self.rotation_strength : int = hashlib.shake_128(kdf_key + b"strength").digest(1)[0]
@@ -75,7 +83,7 @@ class FrancEnigma:
     
     def cipher(self, text : bytes) -> bytes:
         rotors : list[bytearray] = self.rotors
-        reversed_rotors : list[bytearray] = rotors[::-1]
+        rotor_index_list : list[bytearray] = self.rotor_index_list
         deflect : list[int] = self.deflect
         rotation_strength : int = self.rotation_strength
 
@@ -89,8 +97,8 @@ class FrancEnigma:
                 byte = r[(byte + d) % 256]
             for d in deflect:
                 byte ^= d
-            for r, d in zip(reversed_rotors, reversed(deflect)):
-                byte = (r.index(byte) - d) % 256
+            for r, d in zip(rotor_index_list, reversed(deflect)):
+                byte = (r[byte] - d) % 256
             result[i] = byte
 
             # turn rotor

@@ -77,6 +77,7 @@ class FrancEnigma:
             self.rotor_index_list.append(new_index_list)
         
         # other parameters
+        self.conversion : int = hash_random.randbelow(255) + 1
         self.deflect : list[int] = list(hashlib.shake_256(kdf_key + b"deflect").digest(BYTE_LEN))
         self.rotation_strength : int = hashlib.shake_128(kdf_key + b"strength").digest(1)[0]
         self.rotation_strength = self.rotation_strength // 2 * 2 + 1 # make the number to odd
@@ -87,6 +88,7 @@ class FrancEnigma:
         rotors : list[bytearray] = self.rotors
         rotor_index_list : list[bytearray] = self.rotor_index_list
         deflect : list[int] = self.deflect
+        conversion : int = self.conversion
         rotation_strength : int = self.rotation_strength
 
         deflect_len : int = len(deflect)
@@ -97,8 +99,7 @@ class FrancEnigma:
             # pass rotors
             for r, d in zip(rotors, deflect):
                 byte = r[(byte + d) % 256]
-            for d in deflect:
-                byte ^= d
+            byte ^= conversion
             for r, d in zip(rotor_index_list, reversed(deflect)):
                 byte = (r[byte] - d) % 256
             result[i] = byte

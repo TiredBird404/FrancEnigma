@@ -12,11 +12,11 @@ class Cryption:
         
     def encryption(self) -> bytes:
         salt : bytes = get_random_bytes()
-        enigma_key, mac_key = self._generate_kdf_key(salt)
+        cryption_key, mac_key = self._generate_kdf_key(salt)
 
-        self.text = Diffusion(self.text).diffuse()
+        self.text = Diffusion(self.text, cryption_key).diffuse()
 
-        franc_enigma = FrancEnigma(enigma_key)
+        franc_enigma = FrancEnigma(cryption_key)
         encrypted : bytes = franc_enigma.cipher(self.text)
 
         mac : bytes = self._generate_mac(encrypted, mac_key)
@@ -30,17 +30,17 @@ class Cryption:
         mac : bytes = self.text[-BYTE_LEN:]
         encrypted : bytes = self.text[BYTE_LEN:-BYTE_LEN]
 
-        enigma_key, mac_key = self._generate_kdf_key(salt)
+        cryption_key, mac_key = self._generate_kdf_key(salt)
 
         check_mac : bytes = self._generate_mac(encrypted, mac_key)
         
         if hmac.compare_digest(mac, check_mac) == False:
             return b'', False
         
-        franc_enigma = FrancEnigma(enigma_key)
+        franc_enigma = FrancEnigma(cryption_key)
         decrypted : bytes = franc_enigma.cipher(encrypted)
 
-        decrypted = Undiffusion(decrypted).undiffuse()
+        decrypted = Undiffusion(decrypted, cryption_key).undiffuse()
 
         return decrypted, True
 
@@ -68,7 +68,7 @@ class FrancEnigma:
                 new_rotor[i], new_rotor[l] = new_rotor[l], new_rotor[i]
             new_rotor_list.append(new_rotor)
         self.rotors : list[bytearray] = new_rotor_list
-
+        
         self.rotor_index_list : list[bytearray] = []
         for r in self.rotors[::-1]:
             new_index_list : bytearray = bytearray(256)
@@ -82,6 +82,8 @@ class FrancEnigma:
         self.rotation_strength = self.rotation_strength // 2 * 2 + 1 # make the number to odd
     
     def cipher(self, text : bytes) -> bytes:
+        if len(text) == 0:
+            return text
         rotors : list[bytearray] = self.rotors
         rotor_index_list : list[bytearray] = self.rotor_index_list
         deflect : list[int] = self.deflect
@@ -131,39 +133,49 @@ class HashRandom:
                 return value
 
 class Diffusion:
-    def __init__(self, text : bytes) -> None:
+    def __init__(self, text : bytes, kdf_key : bytes) -> None:
         self.text : bytearray = bytearray(text)
         self.text_len : int = len(self.text)
+        self.add_key : bytes = hashlib.shake_256(kdf_key + b"diffusionADD").digest(BYTE_LEN)
+        self.xor_key : bytes = hashlib.shake_256(kdf_key + b"diffusionXOR").digest(BYTE_LEN)
     
     def diffuse(self) -> bytes:
-        for _ in range(16):
+        if len(self.text) == 0:
+            return bytes(self.text)
+        for i in range(BYTE_LEN):
             self._change_place()
-            self._add()
+            self._add(i)
             self.text.reverse()
-            self._xor()
+            self._xor(i)
         return bytes(self.text)
     
     def _change_place(self) -> None:
         self.text = self.text[1::2] + self.text[0::2]
 
-    def _add(self) -> None:
+    def _add(self, loop_num : int) -> None:
+        key_num : int = self.add_key[loop_num]
         for i in range(self.text_len):
-            self.text[i] = (self.text[i] + i + 1) % 256
+            self.text[i] = (self.text[i] + i + key_num) % 256
 
-    def _xor(self) -> None:
+    def _xor(self, loop_num : int) -> None:
+        self.text[0] ^= self.xor_key[loop_num]
         for i in range(self.text_len - 1):
             self.text[i + 1] ^= self.text[i]
 
 class Undiffusion:
-    def __init__(self, text : bytes) -> None:
+    def __init__(self, text : bytes, kdf_key : bytes) -> None:
         self.text : bytearray = bytearray(text)
         self.text_len : int = len(self.text)
+        self.add_key : bytes = hashlib.shake_256(kdf_key + b"diffusionADD").digest(BYTE_LEN)
+        self.xor_key : bytes = hashlib.shake_256(kdf_key + b"diffusionXOR").digest(BYTE_LEN)
     
     def undiffuse(self) -> bytes:
-        for _ in range(16):
-            self._un_xor()
+        if len(self.text) == 0:
+            return bytes(self.text)
+        for i in reversed(range(BYTE_LEN)):
+            self._un_xor(i)
             self.text.reverse()
-            self._reduce()
+            self._reduce(i)
             self._upright()
         return bytes(self.text)
 
@@ -174,13 +186,15 @@ class Undiffusion:
         self.text[0::2] = even
         self.text[1::2] = odd
 
-    def _reduce(self) -> None:
+    def _reduce(self, loop_num : int) -> None:
+        key_num : int = self.add_key[loop_num]
         for i in range(self.text_len):
-            self.text[i] = (self.text[i] - i - 1) % 256
+            self.text[i] = (self.text[i] - i - key_num) % 256
 
-    def _un_xor(self) -> None:
+    def _un_xor(self, loop_num : int) -> None:
         for i in range(self.text_len - 1, 0, -1):
             self.text[i] ^= self.text[i - 1]
+        self.text[0] ^= self.xor_key[loop_num]
 
 def get_random_bytes() -> bytes:
     return secrets.token_bytes(BYTE_LEN)
